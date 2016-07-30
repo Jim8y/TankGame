@@ -13,7 +13,7 @@ namespace Prototype.NetworkLobby
         public RectTransform lobbyPanel;
 
         public InputField ipInput;
-        public InputField matchNameInput;
+       // public InputField matchNameInput;
 
         public void OnEnable()
         {
@@ -22,8 +22,8 @@ namespace Prototype.NetworkLobby
             ipInput.onEndEdit.RemoveAllListeners();
             ipInput.onEndEdit.AddListener(onEndEditIP);
 
-            matchNameInput.onEndEdit.RemoveAllListeners();
-            matchNameInput.onEndEdit.AddListener(onEndEditGameName);
+           // matchNameInput.onEndEdit.RemoveAllListeners();
+            //matchNameInput.onEndEdit.AddListener(onEndEditGameName);
         }
 
         public void OnClickHost()
@@ -56,19 +56,19 @@ namespace Prototype.NetworkLobby
 
         public void OnClickCreateMatchmakingGame()
         {
-            lobbyManager.StartMatchMaker();
-            lobbyManager.matchMaker.CreateMatch(
-                matchNameInput.text,
-                (uint)lobbyManager.maxPlayers,
-                true,
-                "",
-                lobbyManager.OnMatchCreate);
+            //lobbyManager.StartMatchMaker();
+            //lobbyManager.matchMaker.CreateMatch(
+            //   // matchNameInput.text,
+            //    (uint)lobbyManager.maxPlayers,
+            //    true,
+            //    "",
+            //    lobbyManager.OnMatchCreate);
 
-            lobbyManager.backDelegate = lobbyManager.StopHost;
-            lobbyManager._isMatchmaking = true;
-            lobbyManager.DisplayIsConnecting();
+            //lobbyManager.backDelegate = lobbyManager.StopHost;
+            //lobbyManager._isMatchmaking = true;
+            //lobbyManager.DisplayIsConnecting();
 
-            lobbyManager.SetServerInfo("Matchmaker Host", lobbyManager.matchHost);
+            //lobbyManager.SetServerInfo("Matchmaker Host", lobbyManager.matchHost);
         }
 
         public void OnClickOpenServerList()
