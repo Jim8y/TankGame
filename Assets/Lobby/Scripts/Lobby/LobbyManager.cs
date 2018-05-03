@@ -5,7 +5,7 @@ using UnityEngine.Networking;
 using UnityEngine.Networking.Types;
 using UnityEngine.Networking.Match;
 using System.Collections;
-
+using System.Collections.Generic;
 
 namespace Prototype.NetworkLobby
 {
@@ -14,7 +14,7 @@ namespace Prototype.NetworkLobby
         static short MsgKicked = MsgType.Highest + 1;
 
         static public LobbyManager s_Singleton;
-
+        static private RandomPosition randomPos = new RandomPosition();
 
         [Header("Unity UI Lobby")]
         [Tooltip("Time in second between all players ready & match start")]
@@ -53,6 +53,14 @@ namespace Prototype.NetworkLobby
 
         protected LobbyHook _lobbyHooks;
 
+        [Space]
+        [Header("Tank Prefabs")]
+        public GameObject[] tankPrefabs;
+
+        // [SyncVar]
+        public static Dictionary<int, int> currentPlayers = new Dictionary<int, int>();
+
+
         void Start()
         {
             s_Singleton = this;
@@ -63,8 +71,6 @@ namespace Prototype.NetworkLobby
             GetComponent<Canvas>().enabled = true;
 
             DontDestroyOnLoad(gameObject);
-
-            SetServerInfo("Offline", "None");
         }
 
         public override void OnLobbyClientSceneChanged(NetworkConnection conn)
@@ -138,7 +144,6 @@ namespace Prototype.NetworkLobby
             else
             {
                 backButton.gameObject.SetActive(false);
-                SetServerInfo("Offline", "None");
                 _isMatchmaking = false;
             }
         }
@@ -149,18 +154,13 @@ namespace Prototype.NetworkLobby
             infoPanel.Display("Connecting...", "Cancel", () => { _this.backDelegate(); });
         }
 
-        public void SetServerInfo(string status, string host)
-        {
-            statusInfo.text = status;
-            hostInfo.text = host;
-        }
-
 
         public delegate void BackButtonDelegate();
         public BackButtonDelegate backDelegate;
         public void GoBackButton()
         {
             backDelegate();
+			topPanel.isInGame = false;
         }
 
         // ----------------- Server management
@@ -184,8 +184,8 @@ namespace Prototype.NetworkLobby
         {
             if (_isMatchmaking)
             {
-                matchMaker.DestroyMatch((NetworkID)_currentMatchID, OnDestroyMatch);
-                _disconnectServer = true;
+				matchMaker.DestroyMatch((NetworkID)_currentMatchID, 0, OnDestroyMatch);
+				_disconnectServer = true;
             }
             else
             {
@@ -237,18 +237,18 @@ namespace Prototype.NetworkLobby
 
             ChangeTo(lobbyPanel);
             backDelegate = StopHostClbk;
-            SetServerInfo("Hosting", networkAddress);
         }
 
-        public override void OnMatchCreate(CreateMatchResponse matchInfo)
-        {
-            base.OnMatchCreate(matchInfo);
-            _currentMatchID = (ulong)matchInfo.networkId;
-        }
+		public override void OnMatchCreate(bool success, string extendedInfo, MatchInfo matchInfo)
+		{
+			base.OnMatchCreate(success, extendedInfo, matchInfo);
+            _currentMatchID = (System.UInt64)matchInfo.networkId;
+		}
 
-        public void OnDestroyMatch(BasicResponse extendedInfo)
-        {
-            if (_disconnectServer)
+		public override void OnDestroyMatch(bool success, string extendedInfo)
+		{
+			base.OnDestroyMatch(success, extendedInfo);
+			if (_disconnectServer)
             {
                 StopMatchMaker();
                 StopHost();
@@ -278,6 +278,9 @@ namespace Prototype.NetworkLobby
             LobbyPlayer newPlayer = obj.GetComponent<LobbyPlayer>();
             newPlayer.ToggleJoinButton(numPlayers + 1 >= minPlayers);
 
+            // added by jihanliao
+            if (!currentPlayers.ContainsKey(conn.connectionId))
+                currentPlayers.Add(conn.connectionId, 0);
 
             for (int i = 0; i < lobbySlots.Length; ++i)
             {
@@ -399,7 +402,6 @@ namespace Prototype.NetworkLobby
             {//only to do on pure client (not self hosting client)
                 ChangeTo(lobbyPanel);
                 backDelegate = StopClientClbk;
-                SetServerInfo("Client", networkAddress);
             }
         }
 
@@ -414,6 +416,50 @@ namespace Prototype.NetworkLobby
         {
             ChangeTo(mainMenuPanel);
             infoPanel.Display("Cient error : " + (errorCode == 6 ? "timeout" : errorCode.ToString()), "Close", null);
+        }
+
+        // --added by jihanliao
+        public override GameObject OnLobbyServerCreateGamePlayer(NetworkConnection conn, short playerControllerId)
+        {
+
+            int index = currentPlayers[conn.connectionId];
+            GameObject _temp = (GameObject)GameObject.Instantiate(tankPrefabs[index],
+                                                                    randomPos.SetPlayerPosition(),//startPositions[conn.connectionId].position,
+                                                                    Quaternion.identity);
+            // _temp.GetComponent<TankManager>().DisableTankScripts();
+            NetworkServer.AddPlayerForConnection(conn, _temp, playerControllerId);
+            return _temp;
+
+            //  return base.OnLobbyServerCreateGamePlayer(conn, playerControllerId);
+        }
+
+
+        public override void OnServerReady(NetworkConnection conn)
+        {
+            NetworkServer.RegisterHandler(NetworkMessageType.PREFABIDMSG, SetPlayerTypeLobby);
+            base.OnServerReady(conn);
+        }
+
+        public override void OnClientNotReady(NetworkConnection conn)
+        {
+
+            NetworkMessageType.PrefabType msg = new NetworkMessageType.PrefabType();
+            msg.connId = conn.connectionId;
+            msg.prafabtype = TankSelsct.currentIndex;
+            client.Send(NetworkMessageType.PREFABIDMSG, msg);
+
+            base.OnClientNotReady(conn);
+        }
+
+        private void SetPlayerTypeLobby(NetworkMessage msg)
+        {
+            NetworkMessageType.PrefabType clientMsg = msg.ReadMessage<NetworkMessageType.PrefabType>();
+            int connId = clientMsg.connId;
+            int prefabType = clientMsg.prafabtype;
+            if (currentPlayers.ContainsKey(connId))
+            {
+                currentPlayers[connId] = prefabType;
+            }
         }
     }
 }
